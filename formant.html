@@ -35,8 +35,8 @@
 
     var filters = [];
 
-    this.detuneDelta = 5;
-    this.detuneDelay = 50;
+    this.detuneDelta = 180;
+    this.detuneDelay = 25;
 
     function setUp(){
 
@@ -91,8 +91,12 @@
       output.gain.value = (on)? 1 : 0;
     }
 
+    this.setGain = function(v) {
+      //console.log("Gain = "+v);  
+      output.gain.value = v;        
+    }
     this.setFrequency = function(v) {
-      console.log("Frequency = "+v);
+      //console.log("Frequency = "+v);
       source.frequency.value = v; 
     }
 
@@ -195,6 +199,10 @@
       var dYW = (height - y) / height;
 
       synth.setFrequency(min + dYW * max);
+
+	  // TODO: hardcoded values :P
+      synth.setGain(0.1 + dYW * 8);
+      synth.detuneDelta = dYW * 200;
     }
     
     var gui = new dat.GUI();
