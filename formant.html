@@ -11,7 +11,7 @@
 
 
   var Synth = function() {
-    this.on = false;
+    this.on = true;
     this.letter = 'i';
     
     var frequency = 100;
@@ -19,8 +19,11 @@
     var nFreq = 6;
     this.formants = {
       a: [{F:700, BW:130},{F:1220, BW:70 },{F:2500,BW:160}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}],
+      e: [{F:480, BW:70},{F:1720, BW:100 },{F:2520,BW:200}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}],
       i: [{F:310, BW:45},{F:2020, BW:200},{F:2960, BW:400}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}],
-      w: [{F:290, BW:50},{F:610, BW:80},{F:2150, BW:60}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}]       
+      o: [{F:550, BW:80},{F:960, BW:50 },{F:2400,BW:130}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}],
+      u: [{F:350, BW:65},{F:1250, BW:110},{F:2200, BW:140}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}]  
+      //w: [{F:290, BW:50},{F:610, BW:80},{F:2150, BW:60}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}]       
     };
 
     var context = new (window.AudioContext || window.webkitAudioContext)();
@@ -32,12 +35,15 @@
 
     var filters = [];
 
+    this.detuneDelta = 5;
+    this.detuneDelay = 50;
+
     function setUp(){
 
       //var output = context.destination;
 
       output = context.createGainNode();
-      output.gain.value = 0;
+      output.gain.value = 1;
       output.connect(context.destination);
 
       //var output = context.createDynamicsCompressor();
@@ -64,6 +70,7 @@
         filters.push(filter);
 
       }
+
     }
 
     function connect(source, target) {
@@ -85,8 +92,8 @@
     }
 
     this.setFrequency = function(v) {
-        console.log("Frequency = "+v);
-       source.frequency.value = v; 
+      console.log("Frequency = "+v);
+      source.frequency.value = v; 
     }
 
     this.useFormant = function(f){
@@ -108,11 +115,20 @@
       }
     };
 
-    setUp();
-    this.useFormant(this.letter);
+    this.start = function() {
+      setUp();
+      this.useFormant(this.letter);
 
-    // toggle on and off does not seem to work!
-    source.noteOn(0);
+      // toggle on and off does not seem to work!
+      source.noteOn(0);
+
+      var d = 0;
+      var ms = 10;
+      var self = this;
+      setInterval( function() {
+        source.detune.value = self.detuneDelta * Math.sin(d++/ (self.detuneDelay/ms) ) ;
+      }, ms);
+    }
   }
 
   window.onload = function() {
@@ -125,16 +141,15 @@
     height = 400;
 
     var fWidth = Math.floor(width / letters.length); // letter width
-
-    console.log("fwidth = " + fWidth + " width = "+width+ "letter = "+letters.length);
     var ctx = canvas.getContext("2d");  
     ctx.fillStyle = "rgb(0,0,0)";  
     ctx.fillRect (0, 0, width, height);  
 
-    ctx.fillStyle = "rgb(255,255,255)"; 
+    ctx.fillStyle = "rgb(255,255,255)";
+    ctx.font = "20pt Arial"; 
     for(var i = 0; i<letters.length; i++) {
       console.log(letters[i] + " : " + (fWidth * i + (fWidth / 2)));
-      ctx.fillText(letters[i], fWidth * i + (fWidth / 2), 10);
+      ctx.fillText(letters[i], fWidth * i + (fWidth / 2), 20);
     }
 
     canvas.onmousemove = function(e) {
@@ -173,30 +188,26 @@
       synth.useFormant(formant);
 
       // Handle Vertical movement
-       var y = e.clientY;
-       var min = 50,
-           max = 200;
+      var y = e.clientY;
+      var min = 50,
+      max = 200;
 
-        var dYW = (height - y) / height;
+      var dYW = (height - y) / height;
 
-        synth.setFrequency(min + dYW * max);
+      synth.setFrequency(min + dYW * max);
     }
     
     var gui = new dat.GUI();
-
-    var letter = gui.add(synth, 'letter', Object.keys(synth.formants) );
-    letter.onChange(function(value) {
-      console.log("Letter = " + value);
-      synth.useFormant(value);
-    });
 
     var toggle = gui.add( synth, 'on');
     toggle.onChange(function(value) {
       synth.toggle(value);
     });
 
+    gui.add(synth, 'detuneDelta' , 0 ,  200);
+    gui.add(synth, 'detuneDelay', 0, 200 );
 
-
+    synth.start();
   };
 
   </script>
