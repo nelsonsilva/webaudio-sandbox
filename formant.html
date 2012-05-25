@@ -1,0 +1,211 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+  <title>Web Audio API Demo</title>
+
+  <script type="text/javascript" src="http://dat-gui.googlecode.com/git/build/dat.gui.min.js"></script>
+  <script type='text/javascript'>
+
+
+
+  var Synth = function() {
+    this.on = false;
+    this.letter = 'i';
+    
+    var frequency = 100;
+
+    var nFreq = 6;
+    this.formants = {
+      a: [{F:700, BW:130},{F:1220, BW:70 },{F:2500,BW:160}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}],
+      i: [{F:310, BW:45},{F:2020, BW:200},{F:2960, BW:400}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}],
+      w: [{F:290, BW:50},{F:610, BW:80},{F:2150, BW:60}, {F:3300,BW:250},{F:3750,BW:200},{F:4900,BW:1000}]       
+    };
+
+    var context = new (window.AudioContext || window.webkitAudioContext)();
+    
+    var source;
+    var output;
+
+    var connections = [];
+
+    var filters = [];
+
+    function setUp(){
+
+      //var output = context.destination;
+
+      output = context.createGainNode();
+      output.gain.value = 0;
+      output.connect(context.destination);
+
+      //var output = context.createDynamicsCompressor();
+      //output.connect(context.destination);
+
+      var osc = context.createOscillator();
+      osc.type = osc.SAWTOOTH;
+      //console.log ("OSC = "+ frequency);
+      osc.frequency.value = frequency;
+
+      source = osc;
+
+      for(var i = 0; i < nFreq; i++) {
+        var filter = context.createBiquadFilter();
+        filter.type = filter.BANDPASS;
+
+        var gain = context.createGainNode();
+        gain.gain.value =  1;
+        
+        connect(source, filter);
+        connect(filter, gain);
+        connect(gain, output);
+
+        filters.push(filter);
+
+      }
+    }
+
+    function connect(source, target) {
+      source.connect(target);
+      connections.push([source, target]);
+    }
+
+    function disconnectAll() {
+      var connection;
+      while(connection = connections.pop()){
+        connection[0].disconnect(connection[1]);
+      };
+    }
+
+
+    this.toggle = function(on){
+      //(on)? source.noteOn(0) : source.noteOff(0);
+      output.gain.value = (on)? 1 : 0;
+    }
+
+    this.setFrequency = function(v) {
+        console.log("Frequency = "+v);
+       source.frequency.value = v; 
+    }
+
+    this.useFormant = function(f){
+      //disconnectAll();
+      if( typeof f == "string") {
+        f = this.formants[f];
+      }
+      for(var i = 0; i< nFreq; i++) {
+        var formant = f[i];
+        var filter = filters[i];
+        filter.frequency.value = formant.F;
+
+        // BW = Fc / Q <=> Q = Fc / BW
+        var Q =  formant.F / (formant.BW / 2);
+
+        //console.log("Freq=" + formant.F + " Q="+Q);
+        filter.Q.value = Q;
+
+      }
+    };
+
+    setUp();
+    this.useFormant(this.letter);
+
+    // toggle on and off does not seem to work!
+    source.noteOn(0);
+  }
+
+  window.onload = function() {
+    var synth = new Synth();
+    var letters = Object.keys(synth.formants);
+    
+
+    var canvas = document.body.getElementsByTagName("canvas")[0],
+    width = 800,
+    height = 400;
+
+    var fWidth = Math.floor(width / letters.length); // letter width
+
+    console.log("fwidth = " + fWidth + " width = "+width+ "letter = "+letters.length);
+    var ctx = canvas.getContext("2d");  
+    ctx.fillStyle = "rgb(0,0,0)";  
+    ctx.fillRect (0, 0, width, height);  
+
+    ctx.fillStyle = "rgb(255,255,255)"; 
+    for(var i = 0; i<letters.length; i++) {
+      console.log(letters[i] + " : " + (fWidth * i + (fWidth / 2)));
+      ctx.fillText(letters[i], fWidth * i + (fWidth / 2), 10);
+    }
+
+    canvas.onmousemove = function(e) {
+
+      // Handle Horizontal movement
+      var pos = e.clientX;
+      
+      var idx = Math.floor(pos/fWidth);     
+      var dx = pos % fWidth;
+
+      var l1 = letters[idx];
+      var f1 = synth.formants[l1];
+
+      var f1Dx = dx - (fWidth / 2);
+      //console.log("DX = " + f1Dx);
+      var f1W = 1 - (Math.abs(f1Dx) / fWidth);
+
+      idx+=(f1Dx<0)?-1:1
+      if(idx<0){ idx=0;}
+      if(idx>letters.length-1){ idx=letters.length-1;}
+      var l2 = letters[idx];
+      var f2 = synth.formants[l2];
+      var f2W = 1 - f1W;
+
+      //console.log("Mixing " + l1 + " ("+ f1W + ") with " + l2 + " ("+ f2W + ")");
+
+      var formant = [];
+
+      for( var i = 0; i < f1.length; i++) {
+        formant.push({
+          F: (f1[i].F * f1W) + (f2[i].F * f2W) , 
+          BW: (f1[i].BW * f1W) + (f2[i].BW * f2W)
+        });
+      }
+
+      synth.useFormant(formant);
+
+      // Handle Vertical movement
+       var y = e.clientY;
+       var min = 50,
+           max = 200;
+
+        var dYW = (height - y) / height;
+
+        synth.setFrequency(min + dYW * max);
+    }
+    
+    var gui = new dat.GUI();
+
+    var letter = gui.add(synth, 'letter', Object.keys(synth.formants) );
+    letter.onChange(function(value) {
+      console.log("Letter = " + value);
+      synth.useFormant(value);
+    });
+
+    var toggle = gui.add( synth, 'on');
+    toggle.onChange(function(value) {
+      synth.toggle(value);
+    });
+
+
+
+  };
+
+  </script>
+
+
+</head>
+<body>
+  <canvas width="800" height="400"/>
+</body>
+
+
+</html>
